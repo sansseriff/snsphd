@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Utility and styling functions for A. Mueller's phd thesis"
 authors = ["Andrew Mueller <amueller@caltech.edu>"]
 readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/sansseriff/snsphd"
+repository = "https://github.com/sansseriff/snsphd"
 
 [tool.poetry.dependencies]
 python = "^3.10"
