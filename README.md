@@ -1,7 +1,7 @@
 <!-- ![SNSPHD](./snsphd.svg) -->
 
 <p align="center">
-  <img src="./snsphd.svg" alt="SNSPHD" width="400"/>
+  <img src="https://github.com/sansseriff/snsphd/raw/master/snsphd.svg" alt="SNSPHD" width="400"/>
 </p>
 
 

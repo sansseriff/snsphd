@@ -23,7 +23,7 @@ def bisect(
             spacing = spacing * height
         return [x, y, width, height * offset - spacing / 2], [
             x,
-            height * offset + (spacing / 2),
+            y + height * offset + (spacing / 2),
             width,
             height * (1 - offset) - (spacing / 2),
         ]
@@ -32,7 +32,7 @@ def bisect(
         if not absolute_spacing:
             spacing = spacing * width
         return [x, y, width * offset - spacing / 2, height], [
-            width * offset + (spacing / 2),
+            x + width * offset + (spacing / 2),
             y,
             width * (1 - offset) - spacing / 2,
             height,

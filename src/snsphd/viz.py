@@ -85,7 +85,8 @@ def color_palette(dark=False) -> tuple[dict, list]:
 
 def bokeh_basic():
     # because I always forget bokeh syntax
-    print("colors, swatches = viz.bokeh_theme()\n\
+    print(
+        "colors, swatches = viz.bokeh_theme()\n\
 from bokeh.plotting import figure, show\n\
 import numpy as np\n\
 from bokeh.io import output_notebook\n\
@@ -117,7 +118,6 @@ def update_colors(dark=False):
         plt.rcParams.update(
             {
                 "axes.facecolor": "#3d3f4f",
-                # "axes.facecolor": "#ffffff",
                 "axes.edgecolor": "#dbdbdb",
                 "axes.labelcolor": "#dbdbdb",
                 "text.color": "#dbdbdb",
@@ -131,6 +131,448 @@ def update_colors(dark=False):
         colors, palette = color_palette(dark=True)
     # sns.set_palette(palette)
     return "done"
+
+
+import copy
+import matplotlib.colors as mcolors
+import colorsys
+import matplotlib.colors as mcolors
+import math
+import pickle
+import io
+import os
+import traceback
+
+
+def dark_alpha_converter(alpha):
+    try:
+        math.sqrt(math.sqrt(math.sqrt(alpha)))
+    except Exception as e:
+        # traceback.print_exc()
+        return alpha
+
+
+import colorsys
+import matplotlib.colors as mcolors
+from matplotlib.colors import ListedColormap
+
+
+
+def plot_arrows(ax, start, end, color="red", arrowstyle= "<->", alpha=1, lw=1, ls="-", label="", fontsize=12, arrowsize=10):
+        ax.annotate(
+            text="",
+            xy=start,
+            xytext=end,
+            arrowprops=dict(
+                color=color,
+                alpha=alpha,
+                lw=lw,
+                ls=ls,
+                shrinkA=0,
+                shrinkB=0,
+                patchA=None,
+                patchB=None,
+                arrowstyle=arrowstyle,
+                mutation_scale=arrowsize, 
+            ),
+            bbox=dict(pad=0),
+        )
+        center_x = (start[0] + end[0]) / 2
+        center_y = (start[1] + end[1]) / 2
+        if label != "":
+            ax.annotate(
+                label,
+                xy=(center_x, center_y),
+                color=color,
+                alpha=alpha,
+                xytext=(0, -1),
+                fontsize=fontsize,
+                textcoords="offset points",
+                horizontalalignment="center",
+                verticalalignment="top",
+            )
+
+
+def mix_with_white(hex_color, amount):
+    # Convert hex color to RGB format
+    rgb_color = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+    # Mix with white by adding RGB values
+    white_rgb = (255, 255, 255)
+    mixed_rgb = tuple(
+        int((1 - amount) * c + amount * w) for c, w in zip(rgb_color, white_rgb)
+    )
+
+    # Convert mixed RGB color back to hex format
+    mixed_hex_color = "#{:02x}{:02x}{:02x}".format(*mixed_rgb)
+
+    return mixed_hex_color
+
+
+def saturation_response(x):
+    # a somewhat filmic-like saturation response curve
+    return (np.abs(-2.8 * (x - 0.38) ** 2 + 1)) ** 2
+
+
+def rgb_color_saturation(rgb_color, saturation):
+    hls_color = colorsys.rgb_to_hls(*rgb_color)
+    saturation_adj = saturation_response(hls_color[1])
+    # print("light: ", hls_color[1])
+    # print(saturation_adj)
+    hls_color = (hls_color[0], hls_color[1], hls_color[2] * saturation_adj)
+    rgb_color = colorsys.hls_to_rgb(*hls_color)
+    return rgb_color
+
+
+def brighten_color(hex_color, min_lightness):
+    # Convert hex color to RGB format
+    # hex_representation_of_black = "#000000"
+    if hex_color.upper() == "#000000":
+        return "#B6BCCF"
+
+    rgb_color = mcolors.to_rgb(hex_color)
+
+    # Convert RGB color to HLS format and get lightness value
+    hls_color = colorsys.rgb_to_hls(*rgb_color)
+    lightness = hls_color[1]
+    saturation = hls_color[2]
+
+    # Check if lightness is below the minimum value
+    if lightness < min_lightness:
+        # Brighten the color by increasing the lightness value
+        lightness_diff = min_lightness - lightness
+        lightness = min(lightness + lightness_diff * 1.3, 1.0)
+        rgb_color = colorsys.hls_to_rgb(hls_color[0], lightness, hls_color[2])
+
+    # Convert RGB color back to hex format
+    hex_color = mcolors.to_hex(rgb_color)
+
+    # if it's a very saturated color, mix with white
+    if (
+        # hex_color.upper() == "#0000FF"
+        # or hex_color.upper() == "#FF0000"
+        # or hex_color.upper() == "#00FF00"
+        saturation
+        > 0.8
+    ):
+        # print(hex_color)
+        # print(hls_color)
+        # print(get_color_value(hex_color))
+        hex_color = mix_with_white(hex_color[1:].upper(), 0.5)
+
+    return hex_color
+
+
+def lift_gamma_gain(rgb_color, lift, gamma, gain):
+    return (gain * (rgb_color + lift * (1 - rgb_color))) ** (1 / gamma)
+
+
+def manage_lines(lines_list, override_alpha=False):
+    for line in lines_list:
+        c = line.get_color()
+        # a = line.get_alpha()
+        c_b = mcolors.to_rgba(brighten_color(mcolors.to_hex(c), 0.5), 1)
+        line.set_color(c_b)
+        if not override_alpha:
+            line.set_alpha(dark_alpha_converter(line.get_alpha()))
+        # line.set_color('w')
+        # print("color: ", c)
+
+
+
+def handle_legend_errbars(children, max_depth, depth=0, override_alpha=False):
+    if depth >= max_depth:
+        for child in children:
+            # print(child)
+            if isinstance(child, matplotlib.collections.LineCollection):
+                # print(child.get_color())
+                child.set_color(mcolors.to_rgb(brighten_color(mcolors.to_hex(child.get_color()), 0.5)))
+                if not override_alpha:
+                    child.set_alpha(dark_alpha_converter(child.get_alpha()))
+
+            if isinstance(child, matplotlib.lines.Line2D):
+                # print(child.get_color())
+                child.set_color(mcolors.to_rgb(brighten_color(mcolors.to_hex(child.get_color()), 0.5)))
+                if not override_alpha:
+                    child.set_alpha(dark_alpha_converter(child.get_alpha()))
+        return
+    for child in children:
+        handle_legend_errbars(child.get_children(), max_depth, depth+1, override_alpha=override_alpha)
+
+
+def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc: str ="./", override_alpha: bool = False, override_cmap: bool = False):
+    """for making light and dark versions of a figure all at once. The idea is to drop in this function at the bottom, and not have
+    to modify the above code much at all. 
+
+    - use small_ax.bg = "dm_convert" to convert an ax background (like an inset) to dark background, but no alpha
+    - on text elements that should not be converted from non-white to white, use the gid param with 'keep': 'ax.text(..., gid="keep")
+
+    Args:
+        fig (plt.Figure | None, optional): _description_. Defaults to None.
+        name (str, optional): _description_. Defaults to "figure".
+        loc (str, optional): _description_. Defaults to "./".
+        override_alpha (bool, optional): _description_. Defaults to False.
+        override_cmap (bool, optional): _description_. Defaults to False.
+    """
+
+    sep = name.split("/")
+    print(sep)
+    sl = "/"
+    loc = sl.join(sep[:-1]) + "/"
+    print(loc)
+    name = sep[-1]
+
+    if loc != "./":
+        if not os.path.exists(loc):
+            os.makedirs(loc)
+
+    # create two colormaps
+    cmap1 = plt.cm.plasma
+    cmap2 = plt.cm.inferno
+    n = 256
+    # create a new colormap that is a mix of the two
+    colors1 = cmap1(np.linspace(0.0, 1, n))
+    colors2 = cmap2(np.linspace(0, 1, n))
+    colors = np.zeros((n, 4))
+    colors[:, :3] = 0.4 * colors1[:, :3] + 0.6 * colors2[:, :3]  # / 2
+    colors[:, 3] = 0.4 * colors1[:, 3] + 0.6 * colors2[:, 3]  # / 2
+    # print(colors)
+    for i in range(len(colors)):
+        colors[i][:3] = rgb_color_saturation(colors[i][:3], 0.75)
+        colors[i][:3] = lift_gamma_gain(colors[i][:3], 0.1, 1.0, 1.0)
+
+    mixed_cmap = ListedColormap(colors)
+
+    if fig is None:
+        fig = plt.gcf()
+    assert isinstance(fig, matplotlib.figure.Figure)
+
+    # some graphs are not pickleable, like 3d plots
+    # pickeling is the only reliable way of fully duplicating a figure
+    try:
+        buf = io.BytesIO()
+        pickle.dump(fig, buf)
+        buf.seek(0)
+        fig2 = pickle.load(buf)
+        pickleable = True
+        print("pickleable")
+    except Exception as e:
+        traceback.print_exc()
+        pickleable = False
+
+    old_legends = []
+
+    for ax in fig.axes:
+        try:
+            print(ax.my_key)
+        except:
+            pass
+
+        # this changes color of the colorbar edges
+        for spine in ax.spines.values():
+            spine.set_color("#B6BCCF")
+        for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+            tick.label1.set_color("#B6BCCF")
+        ax.tick_params(axis="both", colors="#B6BCCF")
+
+        # dark mode
+        ax.spines["bottom"].set_color("#B6BCCF")
+        ax.spines["left"].set_color("#B6BCCF")
+        ax.spines["right"].set_color("#B6BCCF")
+        ax.spines["top"].set_color("#B6BCCF")
+        ax.xaxis.label.set_color("#B6BCCF")
+        ax.yaxis.label.set_color("#B6BCCF")
+        ax.tick_params(axis="x", colors="#B6BCCF")
+        ax.tick_params(axis="y", colors="#B6BCCF")
+
+        manage_lines(ax.lines, override_alpha)
+
+        rectangles = [
+            child for child in ax.get_children() if isinstance(child, plt.Rectangle)
+        ]
+
+        for rect in rectangles:
+            # print("rect: ", rect)
+            # print("rect color: ", rect.get_facecolor())
+            c = rect.get_facecolor()
+            if mcolors.to_hex(c) != "#39394A":
+                c_b = mcolors.to_rgba(brighten_color(mcolors.to_hex(c), 0.5), 1)
+                # print(c_b)
+                rect.set_facecolor(c_b)
+
+
+        if ax.__dict__.get("bg") == "dm_convert":
+            # a light blue with very low alpha
+            # ax.set_facecolor("#222229")
+            ax.set_facecolor(mcolors.to_rgba("#222229", 1))
+        else:
+            # a light blue with very low alpha
+            ax.set_facecolor(mcolors.to_rgba("#A3A3FF", 0.04))
+
+
+
+        for image in ax.get_images():
+            if not override_cmap:
+                image.set_cmap(mixed_cmap)
+
+        scatter_list = ax.collections
+        for obj in scatter_list:
+            if isinstance(obj, matplotlib.collections.PathCollection):
+                # This object is a scatter plot
+                # Do something with it
+                if not override_cmap:
+                    obj.set_cmap(mixed_cmap)
+
+        for patch in ax.patches:
+            # print(patch)
+            # print(patch.get_alpha())
+            if not override_alpha:
+                patch.set_alpha(dark_alpha_converter(patch.get_alpha()))
+
+        bars = ax.containers
+        # for bar in bars:
+        #     if ErrorbarContainer
+
+        errorbars = [
+            bar
+            for bar in ax.containers
+            if isinstance(bar, matplotlib.container.ErrorbarContainer)
+        ]
+        for errbar in errorbars:
+            # this handles errorbar color
+            for sub_bar in errbar:
+                try:
+                    for sub_thing in sub_bar:
+                        # print(sub_thing)
+                        c = sub_thing.get_color()
+                        c_b = mcolors.to_rgba(brighten_color(mcolors.to_hex(c), 0.5), 1)
+                        sub_thing.set_color(c_b)
+                        # sub_thing.set_alpha(dark_alpha_converter(sub_thing.get_alpha()))
+                except:
+                    pass
+
+        if ax.legend_ is not None:
+            # print(ax.legend_.get_edgecolor())
+            old_legends.append(copy.copy(ax.legend_))
+            # ax.legend_.set_edgecolor("#B6BCCF")
+            # print("edgecolor: ", ax.legend_.get_edgecolor())
+            legend_frame = ax.legend_.get_frame()
+            # legend_frame.set_edgecolor("#B6BCCF")
+            legend_frame.set_edgecolor("none")
+
+            legend_frame.set_facecolor("#343444")
+            legend_frame.set_alpha(0.72)
+
+            legend_patches = ax.legend_.get_patches()
+            
+            # there is no nice "get_errorbars()" function, so we have to do this recursive search
+            handle_legend_errbars(ax.legend_.get_children(), max_depth=5, override_alpha=override_alpha)
+
+            manage_lines(ax.legend_.get_lines(), override_alpha)
+
+            # print("legend_patches: ", legend_patches)
+            for patch in legend_patches:
+                # print("patches color: ", patch.get_facecolor())
+                c = patch.get_facecolor()
+                # alpha = patch.get_alpha()
+                # print("pathc alpha: ", alpha)
+                if not override_alpha:
+                    patch.set_alpha(dark_alpha_converter(patch.get_alpha()))
+
+                c_b = mcolors.to_rgba(brighten_color(mcolors.to_hex(c), 0.5), 1)
+                patch.set_facecolor(c_b)
+
+        text_list = ax.findobj(match=plt.Text)
+        for text in text_list:
+            
+            if text.get_color() != "white" and text.get_gid() != "keep_color":
+                text.set_color("#B6BCCF")
+
+            arrow_list = text.findobj(match=matplotlib.patches.FancyArrowPatch)
+            for arrow in arrow_list:
+                arrow.set(edgecolor="red")
+
+        if ax.name == "3d":
+            # 3d plots don't need face color
+            ax.set_facecolor("none")
+            # for bar in ax.collections:
+            #     bar.set_edgecolor('#B6BCCF')
+            # ax.patch.set_facecolor("#B6BCCF")
+            # ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+            # ax.x_axis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+            # ax.y_axis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+
+            # ax.xaxis.pane.fill = False
+            # ax.yaxis.pane.fill = False
+            # ax.zaxis.pane.fill = False
+            # print(ax.get_facecolor())
+
+            # ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+            # ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+            # ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.1))
+
+            ax.xaxis.pane.set_edgecolor("w")
+            ax.yaxis.pane.set_edgecolor("w")
+            ax.zaxis.pane.set_edgecolor("w")
+
+    annotation_list = fig.findobj(match=matplotlib.patches.FancyArrowPatch)
+    # print(annotation_list)
+    for annotation in annotation_list:
+        annotation.set(edgecolor="red")
+
+    fig.patch.set_facecolor("#2E303E")
+
+    # update_colors(dark=True)
+    fig.patch.set_facecolor("none")
+    fig.savefig(os.path.join(loc, f"{name}_dark.svg"))
+
+    ############ light
+
+    # update_colors(dark=False)
+    # fig = fig_cpy
+
+    # fig = pickle.load(buf)
+
+    if pickleable is True:
+        fig2.patch.set_facecolor("none")
+        for ax in fig2.axes:
+            # ax.set_facecolor('none')
+            ax.set_facecolor(mcolors.to_rgba("#FDFEFF", 0.60))
+
+
+        fig2.savefig(os.path.join(loc, f"{name}_light.svg"))
+
+        fig2.patch.set_facecolor("white")
+        fig2.savefig(os.path.join(loc, f"{name}_light.pdf"))
+    else:
+        fig.patch.set_facecolor("none")
+        
+        for ax in fig.axes:
+            # light mode
+            ax.set_facecolor('none')
+            ax.spines["bottom"].set_color("#333333")
+            ax.spines["left"].set_color("#333333")
+            ax.spines["right"].set_color("#333333")
+            ax.spines["top"].set_color("#333333")
+            ax.xaxis.label.set_color("#333333")
+            ax.yaxis.label.set_color("#333333")
+            ax.tick_params(axis="x", colors="#333333")
+            ax.tick_params(axis="y", colors="#333333")
+            if ax.legend_ is not None:
+                # ax.legend(edgecolor="#333333")
+                ax.legend_ = old_legends.pop(0)
+            text_list = ax.findobj(match=plt.Text)
+            for text in text_list:
+                if text.get_color() != "white":
+                    text.set_color("#333333")
+            if ax.name == "3d":
+                # 3d plots don't need face color
+                ax.set_facecolor("none")
+
+        fig.patch.set_facecolor("none")
+
+        fig.savefig(os.path.join(loc, f"{name}_light.svg"))
+        fig.savefig(os.path.join(loc, f"{name}.pdf"))
 
 
 def is_notebook() -> bool:
@@ -234,7 +676,7 @@ def phd_style(
         "figure.dpi": 250,
         "errorbar.capsize": 1,
         "savefig.bbox": "tight",
-        "grid.alpha": 0.3,
+        "grid.alpha": 0.2,
     }
 
     if dark_mode:
@@ -374,9 +816,8 @@ def bokeh_theme() -> tuple[dict, list]:
     theme = bokeh.themes.Theme(json=theme_json)
     bokeh.themes
     bokeh.io.curdoc().theme = theme
-    
+
     return (colors, palette)
-    
 
 
 # def altair_theme():

@@ -45,6 +45,13 @@ class DataObj:
             print("Saving data as: ", name)
         return name  # if I want to save other file types with same name
 
+    @classmethod
+    def from_file(cls, name):
+        obj = cls()
+        obj.load_file(name)
+        return obj
+
+
     def load_file(self, name):
         with open(name, "rb") as file:
             strb = file.read()
@@ -91,17 +98,15 @@ class DataObj:
         dic = self.__dict__
         dic_2 = dic.copy()
         for key in dic.keys():
-            # print(type(dic[key]))
 
-            # print(issubclass(dic[key].__class__, type(self)))
-            # print(issubclass(type(dic[key]), type(self)))
-            # print("###########")
-            # print(type(self))
-            # print(type(dic[key]))
-            # print(issubclass(type(dic[key]), type(self)))
-            #
-            # print("###########")
-            # print(dic[key].__bases__)
+            # handle non-continuous numpy arrays
+            if isinstance(dic[key], np.ndarray):
+                is_continuous = dic[key].flags.contiguous
+                # print(is_continuous)
+                if not is_continuous:
+                    dic_2[key] = dic[key].copy(order="C")
+
+
             if (type(dic[key]) is type(self)) or issubclass(type(dic[key]), type(self)):
                 # dic[key] = dic[key].export_dic()
                 json_tool_dic = dic[key].export_dic()
