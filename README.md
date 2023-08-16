@@ -21,6 +21,7 @@ This packages is made of 6 parts:
 
 ## viz
 - Styling related functions and presets. This is used to give matplotlib and bokeh plots a custom style as seen in the thesis. 
+- the `viz.save_light_dark_all()` function is used to save light-mode and dark-mode compatible figures, as well as a .pdf version of use in latex documents. It does not change color properties via rcParams, and therefore does not require changes to code before or involved with the initialization of a figure. `viz.save_light_dark_all()` just has to run at the end of a script or notebook cell, the same way `plt.savefig()` would be used. It traverses the figure DOM and modifies styling of a number of elements including lines, errorbars, legends, `imshow()` images, and other things. 
 
 ## obj
 - Includes the `DataObj` class used for exporting and importing python classes as structured json files. Objects containing numpy arrays are exported using `orjson`, and re-cast into numpy arrays on import. The library follows some basic rules in order to determine what sub-objects should be converted to numpy arrays during import. Complex arrays may not import correctly. The library supports export and import of nested `DataObj` classes. When the json is parsed during import, structures that who's keys include the suffix "_do" are converted to `DataObj` classes in a recursive pattern. 

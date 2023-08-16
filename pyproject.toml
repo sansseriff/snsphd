@@ -23,4 +23,4 @@ ipython = "^8.14.0"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-# try runnning "poetry publish"
+# try runnning "poetry build" and then "poetry publish" to update pypi
