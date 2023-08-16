@@ -23,7 +23,7 @@ This packages is made of 6 parts:
 - Styling related functions and presets. This is used to give matplotlib and bokeh plots a custom style as seen in the thesis. 
 - the `viz.save_light_dark_all()` function is used to save light-mode and dark-mode compatible figures, as well as a .pdf version of use in latex documents. It does not change color properties via rcParams, and therefore does not require changes to code before or involved with the initialization of a figure. `viz.save_light_dark_all()` just has to run at the end of a script or notebook cell, the same way `plt.savefig()` would be used. It traverses the figure DOM and modifies styling of a number of elements including lines, errorbars, legends, `imshow()` images, and other things.
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sansseriff/snsphd/949a6def8f99f3e120686f11b8019ca0b0ebbf18/light_dark.svg" alt="light_dark" width="400"/>
+  <img src="https://raw.githubusercontent.com/sansseriff/snsphd/949a6def8f99f3e120686f11b8019ca0b0ebbf18/light_dark.svg" alt="light_dark" width="700"/>
 </p>
 
 ## obj
