@@ -1,4 +1,5 @@
 <!-- ![SNSPHD](./snsphd.svg) -->
+<!-- ! SEE THE COMMENTED OUT INSTRUCTIONS IN THE pyproject.toml FOR UPDATE INSTRUCTIONS -->
 
 <p align="center">
   <img src="https://github.com/sansseriff/snsphd/raw/master/snsphd.svg" alt="SNSPHD" width="400"/>

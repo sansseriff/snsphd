@@ -15,7 +15,7 @@ import math
 
 
 class SplineTool:
-    def __init__(self, hist, _bins):
+    def __init__(self, _bins, hist, smoothing=0):
         if len(_bins) > len(hist):
             _bins = _bins[:-1]
         assert len(hist) == len(_bins)
@@ -25,7 +25,7 @@ class SplineTool:
         self.norm_hist = hist / self.y_scale
         self.x_scale = self.bins[-1] - self.bins[0]
         self.norm_bins = self.bins / self.x_scale
-        self.smoothing = 0
+        self.smoothing = smoothing
         self.spline = UnivariateSpline(self.norm_bins, self.norm_hist, s=self.smoothing)
 
     def plot_spline(self, plot_bins, smoothing):
@@ -95,7 +95,13 @@ class SplineTool:
         return MaxData(x=cr_pts[max_index] * self.x_scale, y=cr_vals[max_index])
 
     def plot_width_at_level_arrows(
-        self, plot, level, width_label=True, color="black", lw=1.5, alpha=1, ls="-"
+        self,
+        plot,
+        level,
+        width_label=True,
+        width_label_function: callable = None,
+        label_args: dict = {"fontsize": 12, "color": "black", "alpha": 1},
+        arrow_args: dict = {"color": "black", "lw": 1.5, "alpha": 1, "ls": "-"},
     ):
         root_data = self.full_width_at_level(level)
         plot.annotate(
@@ -103,32 +109,44 @@ class SplineTool:
             xy=(root_data.left, root_data.height),
             xytext=(root_data.right, root_data.height),
             arrowprops=dict(
-                color=color,
-                alpha=alpha,
-                lw=lw,
-                ls=ls,
                 shrinkA=0,
                 shrinkB=0,
                 patchA=None,
                 patchB=None,
                 arrowstyle="<->",
+                mutation_scale=16, # increase arrow size
+                **arrow_args,
             ),
             label=f"full width at {level} max",
             bbox=dict(pad=0),
         )
+        font_size = label_args.get("fontsize", 12)
+        if font_size is None:
+            font_size = 12
+
         center = (root_data.left + root_data.right) / 2
         if width_label:
-            plot.annotate(
-                f"{round(root_data.width, 2)}",
-                xy=(center, root_data.height),
-                color=color,
-                alpha=alpha,
-                xytext=(0, -1),
-                fontsize=8,
-                textcoords="offset points",
-                horizontalalignment="center",
-                verticalalignment="top",
-            )
+            if width_label_function is not None:
+                label = width_label_function(root_data.width)
+                plot.annotate(
+                    f"{label}",
+                    xy=(center, root_data.height),
+                    xytext=(0, -.3*font_size),
+                    textcoords="offset points",
+                    horizontalalignment="center",
+                    verticalalignment="top",
+                    **label_args,
+                )
+            else:
+                plot.annotate(
+                    f"{root_data.width:.2f}",
+                    xy=(center, root_data.height),
+                    xytext=(0, -.3*font_size),
+                    textcoords="offset points",
+                    horizontalalignment="center",
+                    verticalalignment="top",
+                    **label_args,
+                )
 
         # useful
         # https://stackoverflow.com/questions/23344891/matplotlib-set-pad-between-arrow-and-text-in-annotate-function

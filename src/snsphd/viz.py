@@ -9,10 +9,7 @@ from matplotlib.patches import BoxStyle
 from matplotlib.offsetbox import AnchoredText
 import matplotlib
 from IPython import get_ipython
-
-# import altair as alt
-
-# import altair as alt
+from bokeh.models import InlineStyleSheet, Slider
 
 
 def despine(ax, offset=2):
@@ -157,40 +154,51 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import ListedColormap
 
 
-
-def plot_arrows(ax, start, end, color="red", arrowstyle= "<->", alpha=1, lw=1, ls="-", label="", fontsize=12, arrowsize=10):
+def plot_arrows(
+    ax,
+    start,
+    end,
+    color="red",
+    arrowstyle="<->",
+    alpha=1,
+    lw=1,
+    ls="-",
+    label="",
+    fontsize=12,
+    arrowsize=10,
+):
+    ax.annotate(
+        text="",
+        xy=start,
+        xytext=end,
+        arrowprops=dict(
+            color=color,
+            alpha=alpha,
+            lw=lw,
+            ls=ls,
+            shrinkA=0,
+            shrinkB=0,
+            patchA=None,
+            patchB=None,
+            arrowstyle=arrowstyle,
+            mutation_scale=arrowsize,
+        ),
+        bbox=dict(pad=0),
+    )
+    center_x = (start[0] + end[0]) / 2
+    center_y = (start[1] + end[1]) / 2
+    if label != "":
         ax.annotate(
-            text="",
-            xy=start,
-            xytext=end,
-            arrowprops=dict(
-                color=color,
-                alpha=alpha,
-                lw=lw,
-                ls=ls,
-                shrinkA=0,
-                shrinkB=0,
-                patchA=None,
-                patchB=None,
-                arrowstyle=arrowstyle,
-                mutation_scale=arrowsize, 
-            ),
-            bbox=dict(pad=0),
+            label,
+            xy=(center_x, center_y),
+            color=color,
+            alpha=alpha,
+            xytext=(0, -1),
+            fontsize=fontsize,
+            textcoords="offset points",
+            horizontalalignment="center",
+            verticalalignment="top",
         )
-        center_x = (start[0] + end[0]) / 2
-        center_y = (start[1] + end[1]) / 2
-        if label != "":
-            ax.annotate(
-                label,
-                xy=(center_x, center_y),
-                color=color,
-                alpha=alpha,
-                xytext=(0, -1),
-                fontsize=fontsize,
-                textcoords="offset points",
-                horizontalalignment="center",
-                verticalalignment="top",
-            )
 
 
 def mix_with_white(hex_color, amount):
@@ -279,30 +287,67 @@ def manage_lines(lines_list, override_alpha=False):
         # print("color: ", c)
 
 
-
 def handle_legend_errbars(children, max_depth, depth=0, override_alpha=False):
     if depth >= max_depth:
         for child in children:
             # print(child)
             if isinstance(child, matplotlib.collections.LineCollection):
                 # print(child.get_color())
-                child.set_color(mcolors.to_rgb(brighten_color(mcolors.to_hex(child.get_color()), 0.5)))
+                child.set_color(
+                    mcolors.to_rgb(
+                        brighten_color(mcolors.to_hex(child.get_color()), 0.5)
+                    )
+                )
                 if not override_alpha:
                     child.set_alpha(dark_alpha_converter(child.get_alpha()))
 
             if isinstance(child, matplotlib.lines.Line2D):
                 # print(child.get_color())
-                child.set_color(mcolors.to_rgb(brighten_color(mcolors.to_hex(child.get_color()), 0.5)))
+                child.set_color(
+                    mcolors.to_rgb(
+                        brighten_color(mcolors.to_hex(child.get_color()), 0.5)
+                    )
+                )
                 if not override_alpha:
                     child.set_alpha(dark_alpha_converter(child.get_alpha()))
         return
     for child in children:
-        handle_legend_errbars(child.get_children(), max_depth, depth+1, override_alpha=override_alpha)
+        handle_legend_errbars(
+            child.get_children(), max_depth, depth + 1, override_alpha=override_alpha
+        )
 
 
-def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc: str ="./", override_alpha: bool = False, override_cmap: bool = False):
+# from matplotlib.patches
+
+
+def custom_cmap(lift: float = 0.1, gamma: float = 1, gain: float = 1) -> ListedColormap:
+    cmap1 = plt.cm.plasma
+    cmap2 = plt.cm.inferno
+    n = 256
+    colors1 = cmap1(np.linspace(0.0, 1, n))
+    colors2 = cmap2(np.linspace(0, 1, n))
+    colors = np.zeros((n, 4))
+    colors[:, :3] = 0.4 * colors1[:, :3] + 0.6 * colors2[:, :3]  # / 2
+    colors[:, 3] = 0.4 * colors1[:, 3] + 0.6 * colors2[:, 3]  # / 2
+
+    for i in range(len(colors)):
+        colors[i][:3] = rgb_color_saturation(colors[i][:3], 0.75)
+        colors[i][:3] = lift_gamma_gain(colors[i][:3], lift, gamma, gain)
+
+    mixed_cmap = ListedColormap(colors)
+    return mixed_cmap
+
+
+def save_light_dark_all(
+    fig: plt.Figure | None = None,
+    name: str = "figure",
+    loc: str = "./",
+    override_alpha: bool = False,
+    override_cmap: bool = False,
+    custom_map: bool | ListedColormap = None,
+):
     """for making light and dark versions of a figure all at once. The idea is to drop in this function at the bottom, and not have
-    to modify the above code much at all. 
+    to modify the above code much at all.
 
     - use small_ax.bg = "dm_convert" to convert an ax background (like an inset) to dark background, but no alpha
     - on text elements that should not be converted from non-white to white, use the gid param with 'keep': 'ax.text(..., gid="keep")
@@ -327,21 +372,24 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
             os.makedirs(loc)
 
     # create two colormaps
-    cmap1 = plt.cm.plasma
-    cmap2 = plt.cm.inferno
-    n = 256
-    # create a new colormap that is a mix of the two
-    colors1 = cmap1(np.linspace(0.0, 1, n))
-    colors2 = cmap2(np.linspace(0, 1, n))
-    colors = np.zeros((n, 4))
-    colors[:, :3] = 0.4 * colors1[:, :3] + 0.6 * colors2[:, :3]  # / 2
-    colors[:, 3] = 0.4 * colors1[:, 3] + 0.6 * colors2[:, 3]  # / 2
-    # print(colors)
-    for i in range(len(colors)):
-        colors[i][:3] = rgb_color_saturation(colors[i][:3], 0.75)
-        colors[i][:3] = lift_gamma_gain(colors[i][:3], 0.1, 1.0, 1.0)
+    # cmap1 = plt.cm.plasma
+    # cmap2 = plt.cm.inferno
+    # n = 256
+    # # create a new colormap that is a mix of the two
+    # colors1 = cmap1(np.linspace(0.0, 1, n))
+    # colors2 = cmap2(np.linspace(0, 1, n))
+    # colors = np.zeros((n, 4))
+    # colors[:, :3] = 0.4 * colors1[:, :3] + 0.6 * colors2[:, :3]  # / 2
+    # colors[:, 3] = 0.4 * colors1[:, 3] + 0.6 * colors2[:, 3]  # / 2
+    # # print(colors)
+    # for i in range(len(colors)):
+    #     colors[i][:3] = rgb_color_saturation(colors[i][:3], 0.75)
+    #     colors[i][:3] = lift_gamma_gain(colors[i][:3], 0.1, 1.0, 1.0)
 
-    mixed_cmap = ListedColormap(colors)
+    # mixed_cmap = ListedColormap(colors)
+
+    if custom_map is None:
+        mixed_cmap = custom_cmap()
 
     if fig is None:
         fig = plt.gcf()
@@ -368,22 +416,53 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
         except:
             pass
 
+        # print("edgeclor: ", ax.spines["right"].get_edgecolor())
+        # print("edgeclor: ", ax.spines["bottom"].get_edgecolor())
+        # print("edgeclor: ", ax.spines["left"].get_edgecolor())
+
+        default_dark_color = (0.2, 0.2, 0.2, 1.0)
+
         # this changes color of the colorbar edges
+
         for spine in ax.spines.values():
-            spine.set_color("#B6BCCF")
+            if spine.get_edgecolor() == default_dark_color:
+                spine.set_color("#B6BCCF")
         for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-            tick.label1.set_color("#B6BCCF")
-        ax.tick_params(axis="both", colors="#B6BCCF")
+            if tick.label1.get_color() == default_dark_color:
+                tick.label1.set_color("#B6BCCF")
+
+        x_tick_color = mcolors.to_rgba(ax.xaxis.get_ticklabels()[0].get_color())
+        y_tick_color = mcolors.to_rgba(ax.yaxis.get_ticklabels()[0].get_color())
+
+        if x_tick_color == default_dark_color:
+            ax.tick_params(axis="x", colors="#B6BCCF")
+        if y_tick_color == default_dark_color:
+            ax.tick_params(axis="y", colors="#B6BCCF")
+
+        # ax.tick_params(axis="both", colors="#B6BCCF")
+        # ax.tick_params(axis="x", colors="#B6BCCF")
+        # ax.tick_params(axis="y", colors="#B6BCCF")
 
         # dark mode
-        ax.spines["bottom"].set_color("#B6BCCF")
-        ax.spines["left"].set_color("#B6BCCF")
-        ax.spines["right"].set_color("#B6BCCF")
-        ax.spines["top"].set_color("#B6BCCF")
-        ax.xaxis.label.set_color("#B6BCCF")
-        ax.yaxis.label.set_color("#B6BCCF")
-        ax.tick_params(axis="x", colors="#B6BCCF")
-        ax.tick_params(axis="y", colors="#B6BCCF")
+        if ax.spines["bottom"].get_edgecolor() == default_dark_color:
+            ax.spines["bottom"].set_color("#B6BCCF")
+
+        if ax.spines["left"].get_edgecolor() == default_dark_color:
+            ax.spines["left"].set_color("#B6BCCF")
+
+        if ax.spines["right"].get_edgecolor() == default_dark_color:
+            ax.spines["right"].set_color("#B6BCCF")
+
+        if ax.spines["top"].get_edgecolor() == default_dark_color:
+            ax.spines["top"].set_color("#B6BCCF")
+
+        if ax.xaxis.label.get_color() == default_dark_color:
+            ax.xaxis.label.set_color("#B6BCCF")
+
+        if ax.yaxis.label.get_color() == default_dark_color:
+            ax.yaxis.label.set_color("#B6BCCF")
+
+        # ax.yaxis.label.set_color("#B6BCCF")
 
         manage_lines(ax.lines, override_alpha)
 
@@ -400,7 +479,6 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
                 # print(c_b)
                 rect.set_facecolor(c_b)
 
-
         if ax.__dict__.get("bg") == "dm_convert":
             # a light blue with very low alpha
             # ax.set_facecolor("#222229")
@@ -409,23 +487,76 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
             # a light blue with very low alpha
             ax.set_facecolor(mcolors.to_rgba("#A3A3FF", 0.04))
 
-
+        quad_mesh = [
+            child
+            for child in ax.get_children()
+            if isinstance(child, plt.matplotlib.collections.QuadMesh)
+        ]
+        for mesh in quad_mesh:
+            mesh.set_cmap(mixed_cmap)
 
         for image in ax.get_images():
             if not override_cmap:
                 image.set_cmap(mixed_cmap)
 
-        scatter_list = ax.collections
-        for obj in scatter_list:
+        collections_list = ax.collections
+        for obj in collections_list:
             if isinstance(obj, matplotlib.collections.PathCollection):
                 # This object is a scatter plot
                 # Do something with it
                 if not override_cmap:
                     obj.set_cmap(mixed_cmap)
+                # print(obj.get_facecolor()[0])
+
+                color = obj.get_facecolor()[0]
+                if np.allclose(color[:3], [0, 0, 0]):  # RGBA for black
+                    obj.set_facecolor([1, 1, 1, color[-1]])
+                    obj.set_edgecolor([1, 1, 1, color[-1]])
+                else:
+                    obj.set_facecolor(
+                        mcolors.to_rgba(
+                            brighten_color(mcolors.to_hex(color), color[-1]),
+                            np.sqrt(color[-1]),
+                        )
+                    )
+                    obj.set_edgecolor(
+                        mcolors.to_rgba(
+                            brighten_color(mcolors.to_hex(color), color[-1]),
+                            np.sqrt(color[-1]),
+                        )
+                    )
+
+                # print(obj.get_facecolor()[0])
+
+            if isinstance(obj, matplotlib.collections.PolyCollection):
+                print("found fill_bewteen poly collection")
+
+                color = obj.get_facecolor()[0]
+                # Convert the color to HLS
+                h, l, s = colorsys.rgb_to_hls(color[0], color[1], color[2])
+                # Increase the lightness by 2x
+                l = min(l * 1.5, 1)
+                # Convert the color back to RGB
+                r, g, b = colorsys.hls_to_rgb(h, l, s)
+                # Set the new color
+                obj.set_facecolor((r, g, b, np.sqrt(color[3])))
+                obj.set_edgecolor((r, g, b, np.sqrt(color[3])))
 
         for patch in ax.patches:
-            # print(patch)
-            # print(patch.get_alpha())
+            face_color = patch.get_facecolor()
+            patch.set_facecolor(
+                mcolors.to_rgba(
+                    brighten_color(mcolors.to_hex(face_color), 0.1),
+                    np.sqrt(face_color[-1]),
+                )
+            )
+            edge_color = patch.get_edgecolor()
+            patch.set_edgecolor(
+                mcolors.to_rgba(
+                    brighten_color(mcolors.to_hex(edge_color), 0.1),
+                    np.sqrt(edge_color[-1]),
+                )
+            )
             if not override_alpha:
                 patch.set_alpha(dark_alpha_converter(patch.get_alpha()))
 
@@ -464,9 +595,11 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
             legend_frame.set_alpha(0.72)
 
             legend_patches = ax.legend_.get_patches()
-            
+
             # there is no nice "get_errorbars()" function, so we have to do this recursive search
-            handle_legend_errbars(ax.legend_.get_children(), max_depth=5, override_alpha=override_alpha)
+            handle_legend_errbars(
+                ax.legend_.get_children(), max_depth=5, override_alpha=override_alpha
+            )
 
             manage_lines(ax.legend_.get_lines(), override_alpha)
 
@@ -484,9 +617,22 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
 
         text_list = ax.findobj(match=plt.Text)
         for text in text_list:
-            
-            if text.get_color() != "white" and text.get_gid() != "keep_color":
+            # this includes number labels for axese
+            # if it's the default dark color OR black, change it
+
+            rgba_color = mcolors.to_rgba(text.get_color())
+            if (
+                rgba_color == default_dark_color
+                and text.get_gid() != "keep_color"
+            ) or rgba_color[:3] == (0, 0, 0):
                 text.set_color("#B6BCCF")
+            else:
+                text.set_color(
+                    mcolors.to_rgba(
+                        brighten_color(mcolors.to_hex(rgba_color), 0.5),
+                        np.sqrt(rgba_color[-1]),
+                    )
+                )
 
             arrow_list = text.findobj(match=matplotlib.patches.FancyArrowPatch)
             for arrow in arrow_list:
@@ -515,6 +661,11 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
             ax.yaxis.pane.set_edgecolor("w")
             ax.zaxis.pane.set_edgecolor("w")
 
+        # collections_list = ax.collections
+        # for obj in collections_list:
+        #     if isinstance(obj, matplotlib.collections.PathCollection):
+        #         print(obj.get_facecolor()[0])
+
     annotation_list = fig.findobj(match=matplotlib.patches.FancyArrowPatch)
     # print(annotation_list)
     for annotation in annotation_list:
@@ -539,17 +690,16 @@ def save_light_dark_all(fig: plt.Figure | None = None, name: str ="figure", loc:
             # ax.set_facecolor('none')
             ax.set_facecolor(mcolors.to_rgba("#FDFEFF", 0.60))
 
-
         fig2.savefig(os.path.join(loc, f"{name}_light.svg"))
 
         fig2.patch.set_facecolor("white")
         fig2.savefig(os.path.join(loc, f"{name}_light.pdf"))
     else:
         fig.patch.set_facecolor("none")
-        
+
         for ax in fig.axes:
             # light mode
-            ax.set_facecolor('none')
+            ax.set_facecolor("none")
             ax.spines["bottom"].set_color("#333333")
             ax.spines["left"].set_color("#333333")
             ax.spines["right"].set_color("#333333")
@@ -588,12 +738,23 @@ def is_notebook() -> bool:
         return False  # Probably standard Python interpreter
 
 
-def setup_svg_and_autoreload():
+def matplotlib_ipython_svg_mode():
     if is_notebook():
         ipython = get_ipython()
         ipython.run_line_magic("config", "InlineBackend.figure_formats = ['svg']")
+
+
+def ipython_autoreload():
+    if is_notebook():
+        ipython = get_ipython()
         ipython.run_line_magic("load_ext", "autoreload")
         ipython.run_line_magic("autoreload", "2")
+
+
+def matplotlib_ipython_png_mode():
+    if is_notebook():
+        ipython = get_ipython()
+        ipython.run_line_magic("config", "InlineBackend.figure_formats = ['png']")
 
 
 def phd_style(
@@ -732,7 +893,12 @@ def phd_style(
         }
 
     if svg_mode:
-        setup_svg_and_autoreload()
+        matplotlib_ipython_svg_mode()
+    else:
+        matplotlib_ipython_png_mode()
+        # to match the sizing of svg mode better
+        matplotlib.style.use({"figure.dpi": 250})
+    ipython_autoreload()
 
     plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
     matplotlib.style.use(rc)
@@ -744,10 +910,173 @@ def phd_style(
     return colors, palette
 
 
-# def load_bokeh():
+from bokeh.themes import Theme
+from bokeh.embed import json_item
+import json
+from bokeh.io import curdoc
 
 
-def bokeh_theme() -> tuple[dict, list]:
+# how to use custom bokeh saving method:
+# source = ColumnDataSource(data=dB_parm)
+
+# plot = figure(width=800, height=400, x_range=(-100,140), y_range=(.0001, .1), y_axis_type="log")
+# l = plot.line("x", "y", source=source, line_width=2, line_alpha=0.6, color="#66a1ff", legend_label="peacoq response function")
+
+# callback = CustomJS(args=dict(source=source), code="""
+#     //const legend = ["this", "that", "the other thing"]
+#     const data = source.data;
+#     const f = cb_obj.value
+#     let name_x = f.toString()
+#     let name_y = f.toString()
+#     name_x += "_histx"
+#     name_y += "_histy"
+#     //const x = data['histx']
+#     data["y"] = data[name_y]
+#     data["x"] = data[name_x]
+#     source.change.emit();
+# """)
+# slider = DarkSlider(start=64, end=94, value=94, step=2, title="attenuation (dB)", direction='rtl', margin=[10,20], sizing_mode="stretch_width")
+
+# slider.js_on_change('value', callback)
+# li = LegendItem(label='peacoq response function', renderers=[l])
+# layout = column(slider, plot)
+
+# save_bokeh_dark_json(layout, "test_1.json", apply=True)
+
+# show(layout)
+
+
+def save_bokeh_dark_json(object, save_name: str, tick_lw=1.5, apply=False) -> Theme:
+    """create a dark bokeh theme, apply it to a json output file, and optionally
+    apply it to the current document
+
+    Args:
+        object (_type_): bokeh object to save
+        save_name (str): name of file to save
+        tick_lw (float, optional): tick linewidth. Defaults to 1.5.
+        apply (bool, optional): whether to apply dark theme to curdoc(). Defaults to False.
+
+    Returns:
+        Theme: dark theme
+    """
+
+    dark_mode = Theme(
+        json={
+            "attrs": {
+                "figure": {
+                    "background_fill_color": "#3d3f4f",  # this is for mkdocs
+                    "border_fill_color": "#24242d",
+                    "outline_line_color": "#444444",
+                },
+                "Axis": {
+                    "major_tick_line_alpha": 1,
+                    "major_tick_line_color": "#b8b9bf",
+                    "minor_tick_line_alpha": 1,
+                    "minor_tick_line_color": "#b8b9bf",
+                    "axis_line_alpha": 1,
+                    "axis_line_color": "#b8b9bf",
+                    "major_label_text_color": "#b8b9bf",
+                    "major_label_text_font": "Helvetica",
+                    # "major_label_text_font_size": "1.15em",
+                    "axis_label_standoff": 10,
+                    "axis_label_text_color": "#b8b9bf",
+                    "axis_label_text_font": "Helvetica",
+                    # "axis_label_text_font_size": "1.35em",
+                    "axis_label_text_font_style": "normal",
+                    "axis_line_width": 1.5,
+                    "axis_line_cap": "round",
+                    "major_tick_line_width": tick_lw,
+                    "minor_tick_line_width": tick_lw,
+                    "major_tick_line_cap": "round",
+                    "minor_tick_line_cap": "round",
+                    "major_tick_out": 7,
+                    "major_tick_in": 0,
+                },
+                "Grid": {
+                    # 'grid_line_dash': [6, 4],
+                    "grid_line_alpha": 1,
+                    "grid_line_width": 1.2,
+                    "grid_line_color": "#575766",
+                },
+                "Title": {
+                    "text_color": "white",
+                    "background_fill_color": "#24242d",
+                    "align": "left",
+                    "text_font_style": "normal",
+                    # "text_font_size": "14pt",
+                    "offset": 0,
+                },
+                "Legend": {
+                    "spacing": 8,
+                    "glyph_width": 15,
+                    "label_standoff": 8,
+                    "label_text_color": "#e0e0e0",
+                    "label_text_font": "Helvetica",
+                    # "label_text_font_size": "1.025em",
+                    "border_line_alpha": 0,
+                    "background_fill_alpha": 0.25,
+                    "background_fill_color": "#797c91",
+                },
+                "Toolbar": {
+                    "autohide": False,
+                    "logo": None,
+                },
+                "ColorBar": {
+                    "title_text_color": "#e0e0e0",
+                    "title_text_font": "Helvetica",
+                    # "title_text_font_size": "1.025em",
+                    "title_text_font_style": "normal",
+                    "major_label_text_color": "#e0e0e0",
+                    "major_label_text_font": "Helvetica",
+                    # "major_label_text_font_size": "1.025em",
+                    "background_fill_color": "#15191c",
+                    "major_tick_line_alpha": 0,
+                    "bar_line_alpha": 0,
+                },
+                "Line": {
+                    "line_color": "#c08df0",
+                    "line_width": 1.9,
+                },
+                "Slider": {
+                    "bar_color": "#3d3f4f",
+                },
+            }
+        }
+    )
+
+    item_text = json.dumps(json_item(object, theme=dark_mode))
+    # if end of name is not '.json', add it
+    if save_name[-5:] != ".json":
+        save_name += ".json"
+    with open(save_name, "w") as file:
+        file.write(item_text)
+
+    if apply:
+        curdoc().theme = dark_mode
+
+    return dark_mode
+
+
+def DarkSlider(**kwargs):
+    sty = InlineStyleSheet(
+        css=""".bk-slider-title { background-color: none; }
+                                                    .noUi-target { border-color: #56586b !important; }
+                                                    .noUi-connects { background-color: #56586b; }
+                                                    .noUi-touch-area { background-color: #56586b;
+                                                                       border-radius: 1px;
+                                                                       box-shadow: 0 0 0 1px #2e2e2e;
+                                                                       border-color: #56586b !important; }
+                                                    .noUi-handle.noUi-handle-lower { border-radius: 1px;
+                                                                                     background-color: #727487;
+                                                                                     border-color: #9799ad !important;
+                                                                                     box-shadow: none; }
+                                                    .noUi-touch-area { display: none; }"""
+    )
+
+    return Slider(stylesheets=[sty], **kwargs)
+
+
+def bokeh_theme(return_color_list=True) -> tuple[dict, list]:
     import bokeh
 
     tick_and_line_color = "#4f4f4f"
@@ -816,8 +1145,10 @@ def bokeh_theme() -> tuple[dict, list]:
     theme = bokeh.themes.Theme(json=theme_json)
     bokeh.themes
     bokeh.io.curdoc().theme = theme
-
-    return (colors, palette)
+    if return_color_list:
+        return (colors, palette)
+    else:
+        return colors
 
 
 # def altair_theme():
