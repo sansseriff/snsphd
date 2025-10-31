@@ -8,8 +8,7 @@ from matplotlib.path import Path
 from matplotlib.patches import BoxStyle
 from matplotlib.offsetbox import AnchoredText
 import matplotlib
-from IPython import get_ipython
-from bokeh.models import InlineStyleSheet, Slider
+from typing import TYPE_CHECKING
 
 
 def despine(ax, offset=2):
@@ -725,36 +724,47 @@ def save_light_dark_all(
         fig.savefig(os.path.join(loc, f"{name}.pdf"))
 
 
-def is_notebook() -> bool:
+def _get_ipython_safe():
     try:
-        shell = get_ipython().__class__.__name__
-        if shell == "ZMQInteractiveShell":
-            return True  # Jupyter notebook or qtconsole
-        elif shell == "TerminalInteractiveShell":
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False  # Probably standard Python interpreter
+        from IPython import get_ipython as _get
+        return _get()
+    except Exception:
+        return None
+
+
+def is_notebook() -> bool:
+    ip = _get_ipython_safe()
+    if ip is None:
+        return False
+    shell = ip.__class__.__name__
+    if shell == "ZMQInteractiveShell":
+        return True  # Jupyter notebook or qtconsole
+    elif shell == "TerminalInteractiveShell":
+        return False  # Terminal running IPython
+    else:
+        return False  # Other type (?)
 
 
 def matplotlib_ipython_svg_mode():
     if is_notebook():
-        ipython = get_ipython()
-        ipython.run_line_magic("config", "InlineBackend.figure_formats = ['svg']")
+        ipython = _get_ipython_safe()
+        if ipython is not None:
+            ipython.run_line_magic("config", "InlineBackend.figure_formats = ['svg']")
 
 
 def ipython_autoreload():
     if is_notebook():
-        ipython = get_ipython()
-        ipython.run_line_magic("load_ext", "autoreload")
-        ipython.run_line_magic("autoreload", "2")
+        ipython = _get_ipython_safe()
+        if ipython is not None:
+            ipython.run_line_magic("load_ext", "autoreload")
+            ipython.run_line_magic("autoreload", "2")
 
 
 def matplotlib_ipython_png_mode():
     if is_notebook():
-        ipython = get_ipython()
-        ipython.run_line_magic("config", "InlineBackend.figure_formats = ['png']")
+        ipython = _get_ipython_safe()
+        if ipython is not None:
+            ipython.run_line_magic("config", "InlineBackend.figure_formats = ['png']")
 
 
 def phd_style(
@@ -910,10 +920,7 @@ def phd_style(
     return colors, palette
 
 
-from bokeh.themes import Theme
-from bokeh.embed import json_item
 import json
-from bokeh.io import curdoc
 
 
 # how to use custom bokeh saving method:
@@ -946,7 +953,7 @@ from bokeh.io import curdoc
 # show(layout)
 
 
-def save_bokeh_dark_json(object, save_name: str, tick_lw=1.5, apply=False) -> Theme:
+def save_bokeh_dark_json(object, save_name: str, tick_lw=1.5, apply=False) -> object:
     """create a dark bokeh theme, apply it to a json output file, and optionally
     apply it to the current document
 
@@ -959,6 +966,15 @@ def save_bokeh_dark_json(object, save_name: str, tick_lw=1.5, apply=False) -> Th
     Returns:
         Theme: dark theme
     """
+
+    try:
+        from bokeh.themes import Theme  # type: ignore
+        from bokeh.embed import json_item  # type: ignore
+        from bokeh.io import curdoc  # type: ignore
+    except Exception as e:
+        raise ImportError(
+            "save_bokeh_dark_json requires bokeh. Install with: pip install 'snsphd[viz]'"
+        ) from e
 
     dark_mode = Theme(
         json={
@@ -1058,6 +1074,13 @@ def save_bokeh_dark_json(object, save_name: str, tick_lw=1.5, apply=False) -> Th
 
 
 def DarkSlider(**kwargs):
+    try:
+        from bokeh.models import InlineStyleSheet, Slider  # type: ignore
+    except Exception as e:
+        raise ImportError(
+            "DarkSlider requires bokeh. Install with: pip install 'snsphd[viz]'"
+        ) from e
+
     sty = InlineStyleSheet(
         css=""".bk-slider-title { background-color: none; }
                                                     .noUi-target { border-color: #56586b !important; }
@@ -1077,7 +1100,12 @@ def DarkSlider(**kwargs):
 
 
 def bokeh_theme(return_color_list=True) -> tuple[dict, list]:
-    import bokeh
+    try:
+        import bokeh  # type: ignore
+    except Exception as e:
+        raise ImportError(
+            "bokeh_theme requires bokeh. Install with: pip install 'snsphd[viz]'"
+        ) from e
 
     tick_and_line_color = "#4f4f4f"
     lw = 1.7
