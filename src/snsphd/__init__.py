@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional dependency not installed
 
 __author__ = """Andrew Mueller"""
 __email__ = """andrewstermueller@gmail.com"""
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 __all__ = [
     "obj",
