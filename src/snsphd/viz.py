@@ -621,8 +621,7 @@ def save_light_dark_all(
 
             rgba_color = mcolors.to_rgba(text.get_color())
             if (
-                rgba_color == default_dark_color
-                and text.get_gid() != "keep_color"
+                rgba_color == default_dark_color and text.get_gid() != "keep_color"
             ) or rgba_color[:3] == (0, 0, 0):
                 text.set_color("#B6BCCF")
             else:
@@ -727,6 +726,7 @@ def save_light_dark_all(
 def _get_ipython_safe():
     try:
         from IPython import get_ipython as _get
+
         return _get()
     except Exception:
         return None

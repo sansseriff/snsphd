@@ -54,21 +54,40 @@ echo "Tag:              $TAG"
 
 # Update files only if version changed; otherwise sync __init__ to pyproject
 if [[ "$NEW_VERSION" != "$CURRENT_VERSION" ]]; then
-  # Update pyproject.toml
-  # macOS/BSD sed requires a backup suffix for -i; use '' for none
-  sed -i '' -E "s/^version\s*=\s*\"[0-9]+\.[0-9]+\.[0-9]+\"/version = \"$NEW_VERSION\"/" "$PYPROJECT"
+  # Update pyproject.toml (robust cross-platform)
+  python3 - "$PYPROJECT" "$NEW_VERSION" <<'PY'
+import sys, re
+path, ver = sys.argv[1], sys.argv[2]
+txt = open(path, 'r', encoding='utf-8').read()
+new = re.sub(r'^version\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"', f'version = "{ver}"', txt, flags=re.M)
+if txt == new:
+    print(f"WARNING: did not update {path}; pattern not found", file=sys.stderr)
+open(path, 'w', encoding='utf-8').write(new)
+PY
 
   # Update __init__.py __version__
-  sed -i '' -E "s/^__version__\s*=\s*\"[0-9]+\.[0-9]+\.[0-9]+\"/__version__ = \"$NEW_VERSION\"/" "$INIT_FILE"
+  python3 - "$INIT_FILE" "$NEW_VERSION" <<'PY'
+import sys, re
+path, ver = sys.argv[1], sys.argv[2]
+txt = open(path, 'r', encoding='utf-8').read()
+new = re.sub(r'^__version__\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"', f'__version__ = "{ver}"', txt, flags=re.M)
+if txt == new:
+    print(f"WARNING: did not update {path}; pattern not found", file=sys.stderr)
+open(path, 'w', encoding='utf-8').write(new)
+PY
 else
-  INIT_VERSION=$(grep -E '^__version__\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"' "$INIT_FILE" | head -n1 | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/') || true
-  if [[ "$INIT_VERSION" != "$NEW_VERSION" ]]; then
-    sed -i '' -E "s/^__version__\s*=\s*\"[0-9]+\.[0-9]+\.[0-9]+\"/__version__ = \"$NEW_VERSION\"/" "$INIT_FILE"
-  fi
+  # Sync __init__ to current version if needed
+  python3 - "$INIT_FILE" "$CURRENT_VERSION" <<'PY'
+import sys, re
+path, ver = sys.argv[1], sys.argv[2]
+txt = open(path, 'r', encoding='utf-8').read()
+new = re.sub(r'^__version__\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"', f'__version__ = "{ver}"', txt, flags=re.M)
+open(path, 'w', encoding='utf-8').write(new)
+PY
 fi
 
 # Show changes
-echo "\nChanged files:"
+printf "\nChanged files:\n"
 git --no-pager diff -- $PYPROJECT $INIT_FILE | sed -n '1,200p'
 
 # Commit, tag, and push
