@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "snsphd"
-version = "0.2.4"
+version = "0.2.5"
 description = "Utility and styling functions for A. Mueller's phd thesis"
 authors = ["Andrew Mueller <andrewstermueller@gmail.com>"]
 readme = "README.md"
